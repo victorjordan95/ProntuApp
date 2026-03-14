@@ -119,6 +119,16 @@ Funções puras: `applyRules(entities) → Alert[]`
 | Glicemia > 300 | crítico | "Hiperglicemia grave" |
 | Dor precordial detectada | info | "Considerar protocolo cardíaco" |
 
+### `checklistRules.ts`
+Fonte dedicada para itens do checklist. Funções puras: `buildChecklist(entities) → ChecklistItem[]`
+
+| Condição detectada | Item gerado |
+|---|---|
+| Dor precordial | "Solicitar ECG" |
+| Diabetes mencionado | "Verificar glicemia em jejum" |
+| Hipertensão detectada | "Orientar dieta hipossódica" |
+| Medicamento novo prescrito | "Confirmar posologia com o paciente" |
+
 ### `soapBuilder.ts`
 Função pura: `buildSOAP(entities, segments) → SOAPDraft`
 
@@ -132,6 +142,7 @@ Função pura: `buildSOAP(entities, segments) → SOAPDraft`
 ### `useNLP.ts`
 - Processa apenas segmentos `final: true`
 - Roda regex do dicionário em O(n) sobre o texto
+- Chama `useEntities` internamente para agregar o resultado
 - Retorna entidades com posição no texto (para highlight)
 - Comentários explicando a lógica para facilitar substituição futura por TF.js
 
@@ -190,6 +201,8 @@ type ConsultaState = {
 
 Actions do reducer: `ADD_SEGMENT`, `UPDATE_ENTITIES`, `ADD_ALERT`, `UPDATE_SOAP`, `SET_STATUS`, `RESET`.
 
+`UPDATE_SOAP` é disparado automaticamente após cada `UPDATE_ENTITIES` — o `soapBuilder.ts` é chamado como efeito colateral no reducer (ou em um `useEffect` que observa `entities`), garantindo que o rascunho SOAP esteja sempre sincronizado com as entidades mais recentes.
+
 ---
 
 ## 7. Tratamento de Erros
@@ -219,7 +232,7 @@ Actions do reducer: `ADD_SEGMENT`, `UPDATE_ENTITIES`, `ADD_ALERT`, `UPDATE_SOAP`
 - Cor primária: verde saúde (`#059669`)
 - Fundo: neutro quente (`#fafaf9`)
 - Tipografia: system-ui, clean, sem ser fria
-- Totalmente responsivo — funciona em tablet (layout em coluna única abaixo de 768px)
+- Totalmente responsivo — layout em coluna única abaixo de 768px (tablet portrait): `TranscriptPanel` primeiro, `InsightsPanel` abaixo com abas compactas
 
 ---
 
@@ -241,6 +254,7 @@ src/
     medicalDictionary.ts
     soapBuilder.ts
     alertRules.ts
+    checklistRules.ts
   App.tsx
   main.tsx
 docs/
@@ -253,7 +267,8 @@ docs/
 
 ## 11. Testes
 
-- `medicalDictionary`, `alertRules`, `soapBuilder` — Vitest puro (funções puras, sem DOM)
+- `medicalDictionary`, `alertRules`, `checklistRules`, `soapBuilder` — Vitest puro (funções puras, sem DOM)
+- `useEntities` — Vitest puro (lógica de agregação e deduplicação tem critérios claros de correção)
 - `useSpeechRecognition` — mock da SpeechRecognition API
 - Componentes — React Testing Library para estados principais (idle, gravando, pausado, com entidades)
 
