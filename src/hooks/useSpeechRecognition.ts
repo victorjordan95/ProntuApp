@@ -1,14 +1,31 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Segment, Speaker } from '../types'
+import type { Segment, Speaker } from '../types'
 
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition
-    webkitSpeechRecognition: typeof SpeechRecognition
-  }
+// Local Web Speech API types (not available in all TS DOM lib versions)
+interface SR {
+  continuous: boolean
+  lang: string
+  interimResults: boolean
+  maxAlternatives: number
+  onresult: ((event: SREvent) => void) | null
+  onerror: ((event: SRErrorEvent) => void) | null
+  onend: (() => void) | null
+  start(): void
+  stop(): void
 }
+interface SREvent {
+  resultIndex: number
+  results: ArrayLike<{ isFinal: boolean; 0: { transcript: string }; length: number }>
+}
+interface SRErrorEvent { error: string }
+type SRConstructor = new () => SR
 
 const MAX_RECONNECT = 3
+
+function getSRConstructor(): SRConstructor | undefined {
+  const w = window as unknown as Record<string, unknown>
+  return (w['SpeechRecognition'] ?? w['webkitSpeechRecognition']) as SRConstructor | undefined
+}
 
 export function useSpeechRecognition() {
   const [transcript, setTranscript]           = useState<Segment[]>([])
@@ -19,7 +36,7 @@ export function useSpeechRecognition() {
   const [currentSpeaker, setCurrentSpeaker]   = useState<Speaker>('doctor')
   const [error, setError]                     = useState<string | null>(null)
 
-  const recognitionRef    = useRef<SpeechRecognition | null>(null)
+  const recognitionRef    = useRef<SR | null>(null)
   const timerRef          = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef      = useRef<number>(0)
   const reconnectRef      = useRef(0)
@@ -27,17 +44,16 @@ export function useSpeechRecognition() {
   const speakerRef        = useRef<Speaker>('doctor')
   const segIdRef          = useRef(0)
 
-  const isSupported = typeof window !== 'undefined' &&
-    ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
+  const isSupported = typeof window !== 'undefined' && !!getSRConstructor()
 
-  const buildRecognition = useCallback((): SpeechRecognition => {
-    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition
-    // Call as factory (handles vi.fn mocks) falling back to new for real browsers
-    let r: SpeechRecognition
+  const buildRecognition = useCallback((): SR => {
+    const SRCtor = getSRConstructor()!
+    // Call as constructor (real browsers); fall back to factory call (vi.fn mocks)
+    let r: SR
     try {
-      r = new SR()
+      r = new SRCtor()
     } catch {
-      r = (SR as unknown as () => SpeechRecognition)()
+      r = (SRCtor as unknown as () => SR)()
     }
     r.continuous      = true
     r.lang            = 'pt-BR'
@@ -46,8 +62,8 @@ export function useSpeechRecognition() {
     return r
   }, [])
 
-  const attachHandlers = useCallback((r: SpeechRecognition) => {
-    r.onresult = (event: SpeechRecognitionEvent) => {
+  const attachHandlers = useCallback((r: SR) => {
+    r.onresult = (event: SREvent) => {
       let interim = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
@@ -73,7 +89,7 @@ export function useSpeechRecognition() {
       if (interim) setInterimText(interim.trim())
     }
 
-    r.onerror = (event: SpeechRecognitionErrorEvent) => {
+    r.onerror = (event: SRErrorEvent) => {
       if (event.error === 'not-allowed') {
         setError('Permissão de microfone negada. Habilite nas configurações do navegador.')
         setIsRecording(false)
