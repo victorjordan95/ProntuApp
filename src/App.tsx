@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
-import { useSpeechRecognition } from './hooks/useSpeechRecognition'
+import { useOpenRouterTranscription } from './hooks/useOpenRouterTranscription'
 import { useNLP } from './hooks/useNLP'
 import { buildSOAP } from './lib/soapBuilder'
 import { buildChecklist } from './lib/checklistRules'
 import { TranscriptPanel } from './components/TranscriptPanel'
 import { InsightsPanel } from './components/InsightsPanel'
 import { RecordingControls } from './components/RecordingControls'
-import { Segment, SOAPDraft, ChecklistItem, ConsultaStatus } from './types'
+import type { Segment, SOAPDraft, ChecklistItem, ConsultaStatus } from './types'
 
 export default function App() {
-  const speech = useSpeechRecognition()
+  const speech = useOpenRouterTranscription()
   const nlp    = useNLP()
 
   const [annotatedSegments, setAnnotatedSegments] = useState<Segment[]>([])
